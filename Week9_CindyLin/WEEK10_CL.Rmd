@@ -1,0 +1,166 @@
+---
+title: 'DATA 607: Week 10'
+author: "Cindy Lin"
+date: "2025-04-01"
+output:
+  pdf_document: default
+ 
+  
+---
+
+# INTRODUCTION
+
+Week 10 assignment is on text mining. I wanted to use poetry since it's often time less about the individual words but about the theme of the text. I think it would be interesting to see how something so nuance that often take the reader's experience to interpret the text would work out with text mining. I used Emily Dickinson's work because her work is often thought of in contrast. I would be interested to see how the sentiment turns out and if it comes to the same conclusion of how ambiguous her works can be.
+
+I am starting by recreating some of the codes in the Text Mining textbook - 
+
+**Citation:**
+Silge, J., & Robinson, D. (2017). *Text Mining with R: A Tidy Approach*. O’Reilly Media. https://www.tidytextmining.com/sentiment.html
+
+## Loading library
+
+```{r library, include= FALSE}
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+install.packages("tidytext", repos = "http://cran.us.r-project.org")
+install.packages("gutenbergr", repos = "http://cran.us.r-project.org")
+install.packages("jsonlite", repos = "http://cran.us.r-project.org")
+install.packages("httr", repos = "http://cran.us.r-project.org")
+install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+
+
+
+```
+Installing the necessary packages for text mining - gutenbergr package to get Emily Dickinson's work. 
+
+## Recreating with Emily Dickinson's WorK
+
+```{r get Emily Dickinson work}
+
+library(gutenbergr)
+library(tidytext)
+library(dplyr)
+library(wordcloud)
+library(sentimentr)
+library(stringr)
+library(knitr)
+
+
+gutenberg_works(author == "Dickinson, Emily")
+
+emily_poems <- gutenberg_download(12242)
+
+tidy_emily <- emily_poems %>%
+  unnest_tokens(word, text)
+# make one word per row 
+
+bing_word_counts <- tidy_emily %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(sentiment, sort = TRUE) %>%
+  ungroup()
+# taken from the text 
+
+print(bing_word_counts)
+
+
+tidy_emily %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 50))
+
+# word cloud
+```
+I searched Emily Dickinson's work in the Project Gutenberg collection and downloaded the full series which is the ID: 12242. By joining the token list (one word per row) and matching it to the bing sentiments, it will count up the positive and negative words. Based on the count, there are about the same positive words as negative words in the Emily Dickinson's series of poetry. With words like life, day, night, sun, death, thee, soul, time, heaven, god and mine being the most common words.
+
+
+## Incorporate One Addiitional Sentiment
+```{r}
+
+
+
+dickinson <- gutenberg_download(12242)
+
+
+text_combined <- paste(dickinson$text, collapse = " ")
+#make into one long text
+
+
+sentences <- get_sentences(text_combined)
+#split into sentences using punctuation rules
+
+flat_sentences <- unlist(sentences)
+#make into vector
+
+sentiment_scores <- sentiment(flat_sentences)
+
+results <- cbind(sentiment_scores, sentence = flat_sentences)
+#combine the score and sentences
+overall_sentiment <- mean(results$sentiment)
+
+if (overall_sentiment > 0) {
+  cat("Overall sentiment is positive.\n")
+} else if (overall_sentiment < 0) {
+  cat("Overall sentiment is negative.\n")
+} else {
+  cat("Overall sentiment is neutral.\n")
+}
+
+# Get the overall sentiment score
+
+print(overall_sentiment)
+
+top_pos <- results[order(results$sentiment, decreasing = TRUE), ][1:5, ]
+top_neg <- results[order(results$sentiment, decreasing = FALSE), ][1:5, ]
+
+
+
+
+kable(top_pos, format = "latex")
+
+
+kable(top_neg, format = "latex")
+
+
+
+
+```
+I wanted to use Sentimentr because it is a sentence level analysis which would be more appropriate in things like literature and poetry. The overall sentiment score of Emily Dickinson's work is neutral as the score is very close to zero. Because it was netural, I also wanted to do the top 5 postive and negative scores so we can see a general sense of her work from both end of the spectrum. 
+
+## Using Azure Language Services
+
+```{r}
+library(httr)
+library(jsonlite)
+
+headers <- add_headers(
+  `Content-Type` = "application/json",
+  `Ocp-Apim-Subscription-Key` = Sys.getenv("api_key")
+
+)
+
+data <- '{"documents": [{"id": "2", "text": "
+If I can stop one heart from breaking,
+I shall not live in vain;
+If I can ease one life the aching,
+Or cool one pain,
+Or help one fainting robin
+Unto his nest again,
+I shall not live in vain."}]}'
+
+res <- POST(
+  url = "https://week10data607.cognitiveservices.azure.com/text/analytics/v3.1/sentiment?opinionMining=false",
+  headers,
+  body = data,
+  encode = "raw"
+)
+
+res
+content(res)$documents[[1]]$sentiment
+
+
+```
+I am using the Azure Language Services and used a poem that I would imagine to be ambiguous in the individual words but the theme of the poem is inspirational and about compassion. This aligns with my thinking as the sentiment score is mixed. 
+
+# CONCLUSION
+By recreating the word in the Text Mining with R, we can see the difference in sentiment in other works. This is a good compare and contrast because the example in the text was of literature while the text used here was for poetry. While literature can have its own "read between the line" type of text, poetry is even more evasive. And though sentimentr, we went beyond and see if we can gather more of the tone verus the individual word, which as expected received a neutrl score. 
+ 
+
